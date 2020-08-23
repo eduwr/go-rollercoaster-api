@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -95,10 +96,41 @@ func (h *coasterHandlers) post(w http.ResponseWriter, r *http.Request) {
 	defer h.Unlock()
 }
 
+func (h *coasterHandlers) getRandomCoaster(w http.ResponseWriter, r *http.Request) {
+	ids := make([]string, len(h.store))
+	h.Lock()
+	i := 0
+	for id := range h.store {
+		ids[i] = id
+		i++
+	}
+	defer h.Unlock()
+
+	var target string
+
+	if len(ids) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	} else if len(ids) == 1 {
+		target = ids[0]
+	} else {
+		rand.Seed(time.Now().UnixNano())
+		target = ids[rand.Intn(len(ids))]
+	}
+
+	w.Header().Add("location", fmt.Sprintf("/coasters/%s", target))
+	w.WriteHeader(http.StatusFound)
+}
+
 func (h *coasterHandlers) getCoaster(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.String(), "/")
 	if len(parts) != 3 {
 		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if parts[2] == "random" {
+		h.getRandomCoaster(w, r)
 		return
 	}
 
@@ -156,6 +188,7 @@ func (a adminPortal) handler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte("401 - unauthorized"))
 		return
+
 	}
 
 	w.Write([]byte("<html><h1>Super secret admin portal</h1></html>"))
